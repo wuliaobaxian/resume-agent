@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Resume Agent
 
-## Getting Started
+AI 简历分析 Agent：输入岗位 JD 和个人简历，输出匹配度分析、能力 gap 识别与具体修改建议。
 
-First, run the development server:
+## 技术栈
+
+- Next.js 14+ (App Router) + TypeScript
+- Tailwind CSS + shadcn/ui (base color: zinc)
+- 智谱 AI GLM-4.6（通过 OpenAI 兼容接口）
+- 部署：Vercel
+
+## 本地启动
 
 ```bash
+npm install
+cp .env.local.example .env.local   # 然后填入你的 ZHIPU_API_KEY
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+访问：
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- http://localhost:3000 — 首页
+- http://localhost:3000/analyze — 分析页面（占位）
+- http://localhost:3000/api/analyze — Agent API（当前返回 mock）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 环境变量
 
-## Learn More
+| 变量 | 说明 | 默认 |
+| --- | --- | --- |
+| `ZHIPU_API_KEY` | 智谱开放平台 API Key（在 https://open.bigmodel.cn 申请） | 必填 |
+| `ZHIPU_MODEL` | 使用的模型名 | `glm-4.6` |
 
-To learn more about Next.js, take a look at the following resources:
+## 部署到 Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. 将仓库推送到 GitHub。
+2. 在 [vercel.com](https://vercel.com) 点击 **New Project**，导入该仓库。
+3. 在 **Environment Variables** 中填入 `ZHIPU_API_KEY` 和 `ZHIPU_MODEL`。
+4. 点击 **Deploy**，Vercel 会自动检测到 Next.js 并完成构建部署。

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Read(//d/My AI Projects/**)",
+      "Bash(npx --yes create-next-app@latest resume-agent --typescript --tailwind --app --src-dir --use-npm --eslint --import-alias \"@/*\" --turbopack --no-git)",
+      "Bash(shopt -s dotglob)",
+      "Bash(mv resume-agent/* resumeagent/)",
+      "Bash(rmdir resume-agent *)",
+      "Bash(npx --yes shadcn@latest init --base-color zinc --yes --force)",
+      "Bash(npx --yes shadcn@latest init --help)",
+      "Bash(npx --yes shadcn@latest init -d -f)",
+      "Bash(npx --yes shadcn@latest add button card input textarea label progress badge alert separator tabs --yes --overwrite)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)",
+      "Bash(npm install *)",
+      "Bash(curl.exe -s -X POST http://localhost:3000/api/validate-jd -H \"Content-Type: application/json\" -d \"{\\\\\"text\\\\\":\\\\\"Short JD\\\\\"}\")",
+      "Bash(curl.exe -s -X POST http://localhost:3000/api/validate-jd -H \"Content-Type: application/json\" -d \"{\\\\\"text\\\\\":\\\\\"We are looking for a senior product manager with 5+ years of experience in B2B SaaS. You will lead cross-functional teams, define product roadmaps, drive stakeholder alignment, and deliver measurable business impact. Required skills include SQL, data analysis, user research, and experience with agile development methodologies. You will collaborate closely with engineering, design, and sales teams to build products that delight enterprise customers.\\\\\"}\")",
+      "Read(//d/tmp/**)",
+      "Bash(printf 'Jane Doe\\\\nSenior Product Manager\\\\n5 years experience in B2B SaaS. Built features shipped to 10k+ enterprise customers. Led team of 8 engineers on payments platform. Shipped 12 major features in 2 years. Ran user research interviews with 40+ customers. Collaborated with design and engineering to deliver MVP of new billing system. Reduced customer churn by 15%% through onboarding improvements.\\\\n\\\\nSkills: SQL, Python, Amplitude, Figma, Jira, A/B testing, roadmapping, stakeholder management.\\\\n\\\\nEducation: BS Computer Science, State University, 2018.')",
+      "Bash(curl.exe -s -X POST http://localhost:3000/api/parse-resume -F \"file=@/tmp/test-resume.txt\")",
+      "Bash(curl.exe -s -X POST http://localhost:3000/api/parse-resume -F \"file=@package.json; filename=pic.jpg\")",
+      "Bash(node -e \"require\\('fs'\\).writeFileSync\\('/tmp/big.pdf', Buffer.alloc\\(6*1024*1024\\)\\)\")",
+      "Bash(curl.exe -s -X POST http://localhost:3000/api/parse-resume -F \"file=@/tmp/big.pdf\")",
+      "Bash(node scripts/test-agent.js)",
+      "Bash(npm uninstall *)",
+      "Bash(node scripts/test-steps.js)"
+    ]
+  }
+}
