@@ -31,7 +31,7 @@ export async function callZhipu(options: CallZhipuOptions): Promise<CallZhipuRes
   } = options;
 
   const apiKey = process.env.ZHIPU_API_KEY;
-  const model = process.env.ZHIPU_MODEL || "glm-4.5-air";
+  const model = process.env.ZHIPU_MODEL || "glm-4.6";
 
   if (!apiKey) {
     throw new Error("ZHIPU_API_KEY is not set. Please configure it in .env.local.");

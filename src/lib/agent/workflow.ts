@@ -10,7 +10,6 @@ import type {
   AgentStepStatus,
   ExtractionResult,
   MatchingResult,
-  StepMetadata,
   SuggestionResult,
 } from "./schemas";
 import { validateSuggestions } from "./validator";
@@ -28,22 +27,10 @@ function stripCodeFence(raw: string): string {
   return m ? m[1].trim() : raw.trim();
 }
 
-function extractTokens(usage: unknown): StepMetadata["tokens"] {
-  if (usage && typeof usage === "object") {
-    const u = usage as Record<string, unknown>;
-    const input = typeof u.prompt_tokens === "number" ? u.prompt_tokens : 0;
-    const output =
-      typeof u.completion_tokens === "number" ? u.completion_tokens : 0;
-    const total =
-      typeof u.total_tokens === "number" ? u.total_tokens : input + output;
-    return { input, output, total };
-  }
-  return { input: 0, output: 0, total: 0 };
-}
-
-export interface StepRun<T> {
-  result: T;
-  metadata: StepMetadata;
+export interface StepRunResult<T> {
+  data: T;
+  usage: unknown;
+  durationMs: number;
 }
 
 async function callStep<T>(
@@ -51,9 +38,8 @@ async function callStep<T>(
   systemPrompt: string,
   userPrompt: string,
   temperature: number
-): Promise<StepRun<T>> {
+): Promise<StepRunResult<T>> {
   const start = Date.now();
-  const modelUsed = process.env.ZHIPU_MODEL || "glm-4.5-air";
   const tryOnce = (t: number) =>
     callZhipu({
       systemPrompt,
@@ -71,13 +57,12 @@ async function callStep<T>(
     usage = res.usage;
     const data = JSON.parse(stripCodeFence(content)) as T;
     const durationMs = Date.now() - start;
-    const metadata: StepMetadata = {
+    logStep(step, {
       durationMs,
-      tokens: extractTokens(usage),
-      modelUsed,
-    };
-    logStep(step, { durationMs, usage });
-    return { result: data, metadata };
+      usage,
+      preview: JSON.stringify(data).slice(0, 500),
+    });
+    return { data, usage, durationMs };
   } catch (firstErr) {
     logStep(step, {
       firstAttemptFailed:
@@ -90,13 +75,8 @@ async function callStep<T>(
       usage = res.usage;
       const data = JSON.parse(stripCodeFence(content)) as T;
       const durationMs = Date.now() - start;
-      const metadata: StepMetadata = {
-        durationMs,
-        tokens: extractTokens(usage),
-        modelUsed,
-      };
-      logStep(step, { retrySucceeded: true, durationMs });
-      return { result: data, metadata };
+      logStep(step, { retrySucceeded: true, durationMs, usage });
+      return { data, usage, durationMs };
     } catch (retryErr) {
       const msg =
         retryErr instanceof Error ? retryErr.message : String(retryErr);
@@ -105,14 +85,22 @@ async function callStep<T>(
   }
 }
 
-export function sumTokens(metadatas: StepMetadata[]): number {
-  return metadatas.reduce((acc, m) => acc + m.tokens.total, 0);
+export function sumTokens(usages: unknown[]): number {
+  let total = 0;
+  for (const u of usages) {
+    if (u && typeof u === "object") {
+      const asRec = u as Record<string, unknown>;
+      const t = asRec.total_tokens;
+      if (typeof t === "number") total += t;
+    }
+  }
+  return total;
 }
 
-export async function runExtraction(
+export async function runExtract(
   jdText: string,
   resumeText: string
-): Promise<StepRun<ExtractionResult>> {
+): Promise<StepRunResult<ExtractionResult>> {
   const userPrompt = `=== JOB DESCRIPTION ===
 ${jdText}
 
@@ -120,17 +108,12 @@ ${jdText}
 ${resumeText}
 
 Extract the structured information as specified. Output JSON only.`;
-  return callStep<ExtractionResult>(
-    "extract",
-    EXTRACTION_PROMPT,
-    userPrompt,
-    0.1
-  );
+  return callStep<ExtractionResult>("extract", EXTRACTION_PROMPT, userPrompt, 0.1);
 }
 
-export async function runMatching(
+export async function runMatch(
   extraction: ExtractionResult
-): Promise<StepRun<MatchingResult>> {
+): Promise<StepRunResult<MatchingResult>> {
   const userPrompt = `Based on the following extracted data, analyze the match.
 
 === EXTRACTED DATA ===
@@ -140,11 +123,11 @@ Output the match analysis JSON as specified.`;
   return callStep<MatchingResult>("match", MATCHING_PROMPT, userPrompt, 0.3);
 }
 
-export async function runSuggestion(
+export async function runSuggest(
   matching: MatchingResult,
   resumeText: string,
   jdText: string
-): Promise<StepRun<SuggestionResult>> {
+): Promise<StepRunResult<SuggestionResult>> {
   const userPrompt = `Based on the match analysis below and the original texts, generate specific suggestions.
 
 === MATCH ANALYSIS ===
@@ -157,49 +140,42 @@ ${resumeText}
 ${jdText}
 
 Output suggestions JSON as specified. Remember: NEVER fabricate facts.`;
-  return callStep<SuggestionResult>(
-    "suggest",
-    SUGGESTION_PROMPT,
-    userPrompt,
-    0.4
-  );
+  return callStep<SuggestionResult>("suggest", SUGGESTION_PROMPT, userPrompt, 0.4);
 }
 
-// Local-only full-run orchestrator. Do NOT use on Vercel — the combined runtime
-// exceeds the Hobby 10s function timeout. Client orchestrates the three
-// independent routes (/extract, /match, /suggest) in production.
-export async function runFullWorkflowLocal(
+// Convenience orchestrator — used for non-streaming calls or tests.
+export async function runAnalysisWorkflow(
   jdText: string,
   resumeText: string,
   onProgress?: (step: AgentStep, status: AgentStepStatus) => void
 ): Promise<AgentResult> {
   const globalStart = Date.now();
-  const modelUsed = process.env.ZHIPU_MODEL || "glm-4.5-air";
-  const metas: StepMetadata[] = [];
+  const usages: unknown[] = [];
+  const modelUsed = process.env.ZHIPU_MODEL || "glm-4.6";
 
   onProgress?.("extract", "start");
-  const ex = await runExtraction(jdText, resumeText);
-  metas.push(ex.metadata);
+  const ex = await runExtract(jdText, resumeText);
+  usages.push(ex.usage);
   onProgress?.("extract", "done");
 
   onProgress?.("match", "start");
-  const mt = await runMatching(ex.result);
-  metas.push(mt.metadata);
+  const mt = await runMatch(ex.data);
+  usages.push(mt.usage);
   onProgress?.("match", "done");
 
   onProgress?.("suggest", "start");
-  const sg = await runSuggestion(mt.result, resumeText, jdText);
-  metas.push(sg.metadata);
+  const sg = await runSuggest(mt.data, resumeText, jdText);
+  usages.push(sg.usage);
   onProgress?.("suggest", "done");
 
-  const validation = validateSuggestions(sg.result, resumeText, jdText);
+  const validation = validateSuggestions(sg.data, resumeText, jdText);
   const result: AgentResult = {
-    extraction: ex.result,
-    matching: mt.result,
-    suggestions: sg.result,
+    extraction: ex.data,
+    matching: mt.data,
+    suggestions: sg.data,
     validation,
     metadata: {
-      totalTokens: sumTokens(metas),
+      totalTokens: sumTokens(usages),
       durationMs: Date.now() - globalStart,
       modelUsed,
     },

@@ -12,63 +12,71 @@ import { GapCard } from "@/components/GapCard";
 import { SuggestionCard } from "@/components/SuggestionCard";
 import { mockResult } from "@/lib/mock-data";
 import type {
+  AgentResult,
+  AgentStep,
   ExtractionResult,
   MatchingResult,
-  StepMetadata,
   SuggestionResult,
   ValidationResult,
 } from "@/lib/agent/schemas";
 
-type Phase = "init" | "mock" | "empty" | "running" | "done" | "partial" | "error";
-type StepKey = "extract" | "match" | "suggest";
-type StepState = "pending" | "running" | "done" | "failed";
+type Phase =
+  | "init"
+  | "mock"
+  | "empty"
+  | "streaming"
+  | "done"
+  | "partial"
+  | "error";
 
-interface StepInfo {
-  state: StepState;
-  error?: string;
-  metadata?: StepMetadata;
+type StepState = "pending" | "running" | "done" | "skipped";
+
+interface StepsState {
+  extract: StepState;
+  match: StepState;
+  suggest: StepState;
 }
 
-type StepsMap = Record<StepKey, StepInfo>;
-
-const initialSteps: StepsMap = {
-  extract: { state: "pending" },
-  match: { state: "pending" },
-  suggest: { state: "pending" },
+const initialSteps: StepsState = {
+  extract: "pending",
+  match: "pending",
+  suggest: "pending",
 };
 
-interface ApiOk<T> {
-  success: true;
-  data: T;
-  metadata: StepMetadata;
+interface PartialPayload {
+  extraction: ExtractionResult;
+  matching: MatchingResult;
+  failedStep: string;
+  message: string;
 }
-interface ApiErr {
-  success: false;
-  error: { code: string; message: string; detail?: string };
-}
-type ApiResp<T> = ApiOk<T> | ApiErr;
 
-async function postJson<T>(url: string, body: unknown): Promise<ApiResp<T>> {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const json = (await res.json().catch(() => null)) as ApiResp<T> | null;
-    if (!json) {
-      return {
-        success: false,
-        error: { code: "BAD_RESPONSE", message: `HTTP ${res.status}` },
-      };
+async function* parseSSE(res: Response): AsyncGenerator<{ event: string; data: unknown }> {
+  if (!res.body) return;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf("\n\n")) !== -1) {
+      const rawMsg = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      let event = "message";
+      let dataLine = "";
+      for (const line of rawMsg.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (dataLine) {
+        try {
+          yield { event, data: JSON.parse(dataLine) };
+        } catch {
+          yield { event, data: dataLine };
+        }
+      }
     }
-    return json;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return {
-      success: false,
-      error: { code: "NETWORK", message: `Network error: ${msg}` },
-    };
   }
 }
 
@@ -77,165 +85,90 @@ function ResultContent() {
   const isMock = searchParams.get("mock") === "true";
 
   const [phase, setPhase] = useState<Phase>("init");
-  const [steps, setSteps] = useState<StepsMap>(initialSteps);
-  const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
-  const [matching, setMatching] = useState<MatchingResult | null>(null);
-  const [suggestions, setSuggestions] = useState<SuggestionResult | null>(null);
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [topError, setTopError] = useState<{ step: StepKey; message: string } | null>(
+  const [steps, setSteps] = useState<StepsState>(initialSteps);
+  const [result, setResult] = useState<AgentResult | null>(null);
+  const [partial, setPartial] = useState<PartialPayload | null>(null);
+  const [error, setError] = useState<{ message: string; step?: string } | null>(
     null
   );
   const startedRef = useRef(false);
 
-  const readInput = useCallback((): { jd: string; resume: string } | null => {
+  const runAnalysis = useCallback(async () => {
+    setPhase("streaming");
+    setSteps(initialSteps);
+    setResult(null);
+    setPartial(null);
+    setError(null);
+
     let stored: string | null = null;
     try {
       stored = sessionStorage.getItem("analysisInput");
     } catch {
-      return null;
+      stored = null;
     }
-    if (!stored) return null;
+    if (!stored) {
+      setPhase("empty");
+      return;
+    }
+    let parsed: { jd?: string; resume?: string } = {};
     try {
-      const parsed = JSON.parse(stored) as { jd?: string; resume?: string };
-      if (!parsed.jd || !parsed.resume) return null;
-      return { jd: parsed.jd, resume: parsed.resume };
+      parsed = JSON.parse(stored);
     } catch {
-      return null;
+      setPhase("empty");
+      return;
+    }
+    const jdText = parsed.jd ?? "";
+    const resumeText = parsed.resume ?? "";
+    if (!jdText || !resumeText) {
+      setPhase("empty");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jdText, resumeText }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setError({ message: errData.error || `HTTP ${res.status}` });
+        setPhase("error");
+        return;
+      }
+
+      for await (const { event, data } of parseSSE(res)) {
+        if (event === "progress") {
+          const { step, status } = data as { step: AgentStep; status: string };
+          setSteps((prev) => ({
+            ...prev,
+            [step]: status === "start" ? "running" : "done",
+          }));
+        } else if (event === "result") {
+          setResult(data as AgentResult);
+          setPhase("done");
+        } else if (event === "partial") {
+          const p = data as PartialPayload;
+          setPartial(p);
+          setSteps((prev) => ({ ...prev, suggest: "skipped" }));
+          setPhase("partial");
+        } else if (event === "error") {
+          const e = data as { message: string; step?: string };
+          setError(e);
+          setPhase("error");
+        }
+      }
+    } catch (err) {
+      setError({
+        message:
+          err instanceof Error
+            ? `Network error: ${err.message}`
+            : "Network error. Please check your connection and retry.",
+      });
+      setPhase("error");
     }
   }, []);
-
-  const updateStep = useCallback(
-    (key: StepKey, patch: Partial<StepInfo>) => {
-      setSteps((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
-    },
-    []
-  );
-
-  // Individual step runners — each returns true on success, false on failure.
-  const doExtract = useCallback(async (): Promise<ExtractionResult | null> => {
-    const input = readInput();
-    if (!input) {
-      setPhase("empty");
-      return null;
-    }
-    updateStep("extract", { state: "running", error: undefined });
-    const t0 = performance.now();
-    const resp = await postJson<ExtractionResult>("/api/analyze/extract", {
-      jdText: input.jd,
-      resumeText: input.resume,
-    });
-    if (!resp.success) {
-      updateStep("extract", { state: "failed", error: resp.error.message });
-      setTopError({ step: "extract", message: resp.error.message });
-      setPhase("error");
-      return null;
-    }
-    console.log(
-      `[client] extract done in ${(performance.now() - t0).toFixed(0)}ms, server=${resp.metadata.durationMs}ms`
-    );
-    setExtraction(resp.data);
-    updateStep("extract", { state: "done", metadata: resp.metadata });
-    return resp.data;
-  }, [readInput, updateStep]);
-
-  const doMatch = useCallback(
-    async (ex: ExtractionResult): Promise<MatchingResult | null> => {
-      updateStep("match", { state: "running", error: undefined });
-      const t0 = performance.now();
-      const resp = await postJson<MatchingResult>("/api/analyze/match", {
-        extraction: ex,
-      });
-      if (!resp.success) {
-        updateStep("match", { state: "failed", error: resp.error.message });
-        setTopError({ step: "match", message: resp.error.message });
-        setPhase("error");
-        return null;
-      }
-      console.log(
-        `[client] match done in ${(performance.now() - t0).toFixed(0)}ms, server=${resp.metadata.durationMs}ms`
-      );
-      setMatching(resp.data);
-      updateStep("match", { state: "done", metadata: resp.metadata });
-      return resp.data;
-    },
-    [updateStep]
-  );
-
-  const doSuggest = useCallback(
-    async (mt: MatchingResult): Promise<boolean> => {
-      const input = readInput();
-      if (!input) return false;
-      updateStep("suggest", { state: "running", error: undefined });
-      const t0 = performance.now();
-      const resp = await postJson<{
-        suggestions: SuggestionResult;
-        validation: ValidationResult;
-      }>("/api/analyze/suggest", {
-        matching: mt,
-        resumeText: input.resume,
-        jdText: input.jd,
-      });
-      if (!resp.success) {
-        updateStep("suggest", { state: "failed", error: resp.error.message });
-        return false;
-      }
-      console.log(
-        `[client] suggest done in ${(performance.now() - t0).toFixed(0)}ms, server=${resp.metadata.durationMs}ms`
-      );
-      setSuggestions(resp.data.suggestions);
-      setValidation(resp.data.validation);
-      updateStep("suggest", { state: "done", metadata: resp.metadata });
-      return true;
-    },
-    [readInput, updateStep]
-  );
-
-  const runAll = useCallback(async () => {
-    setPhase("running");
-    setSteps(initialSteps);
-    setExtraction(null);
-    setMatching(null);
-    setSuggestions(null);
-    setValidation(null);
-    setTopError(null);
-
-    const ex = await doExtract();
-    if (!ex) return;
-    const mt = await doMatch(ex);
-    if (!mt) return;
-    const ok = await doSuggest(mt);
-    setPhase(ok ? "done" : "partial");
-  }, [doExtract, doMatch, doSuggest]);
-
-  // Per-step retry handlers.
-  const retryExtract = useCallback(async () => {
-    setTopError(null);
-    setPhase("running");
-    const ex = await doExtract();
-    if (!ex) return;
-    const mt = await doMatch(ex);
-    if (!mt) return;
-    const ok = await doSuggest(mt);
-    setPhase(ok ? "done" : "partial");
-  }, [doExtract, doMatch, doSuggest]);
-
-  const retryMatch = useCallback(async () => {
-    if (!extraction) return retryExtract();
-    setTopError(null);
-    setPhase("running");
-    const mt = await doMatch(extraction);
-    if (!mt) return;
-    const ok = await doSuggest(mt);
-    setPhase(ok ? "done" : "partial");
-  }, [extraction, doMatch, doSuggest, retryExtract]);
-
-  const retrySuggest = useCallback(async () => {
-    if (!matching) return retryMatch();
-    setTopError(null);
-    setPhase("running");
-    const ok = await doSuggest(matching);
-    setPhase(ok ? "done" : "partial");
-  }, [matching, doSuggest, retryMatch]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -244,12 +177,12 @@ function ResultContent() {
       setPhase("mock");
       return;
     }
-    runAll();
-  }, [isMock, runAll]);
+    runAnalysis();
+  }, [isMock, runAnalysis]);
 
-  // --- Render ---
+  // --- Render branches ---
 
-  if (phase === "init" || (phase === "running" && !matching)) {
+  if (phase === "init" || (phase === "streaming" && !partial && !result)) {
     return <LoadingView steps={steps} />;
   }
 
@@ -257,7 +190,9 @@ function ResultContent() {
     return (
       <main className="flex-1 bg-zinc-50/60 text-zinc-900">
         <div className="mx-auto max-w-xl px-6 py-24 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">No analysis data</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            No analysis data
+          </h1>
           <p className="mt-3 text-zinc-600">
             Start a new analysis to see results here.
           </p>
@@ -273,13 +208,6 @@ function ResultContent() {
   }
 
   if (phase === "error") {
-    const step = topError?.step ?? "extract";
-    const retry =
-      step === "extract"
-        ? retryExtract
-        : step === "match"
-          ? retryMatch
-          : retrySuggest;
     return (
       <main className="flex-1 bg-zinc-50/60 text-zinc-900">
         <div className="mx-auto max-w-xl px-6 py-24 text-center">
@@ -287,16 +215,23 @@ function ResultContent() {
             Analysis failed
           </h1>
           <p className="mt-3 text-zinc-700">
-            {topError?.message ?? "Something went wrong."}
+            {error?.message ?? "Something went wrong."}
           </p>
-          <p className="mt-1 text-xs text-zinc-500">Failed at step: {step}</p>
+          {error?.step && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Failed at step: {error.step}
+            </p>
+          )}
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <button
               type="button"
-              onClick={retry}
+              onClick={() => {
+                startedRef.current = true;
+                runAnalysis();
+              }}
               className="inline-flex h-11 items-center justify-center rounded-md bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-800"
             >
-              Retry this step
+              Retry
             </button>
             <Link
               href="/analyze"
@@ -352,20 +287,8 @@ function ResultContent() {
     );
   }
 
-  // done | partial — matching is non-null here.
-  const totalTokens =
-    (steps.extract.metadata?.tokens.total ?? 0) +
-    (steps.match.metadata?.tokens.total ?? 0) +
-    (steps.suggest.metadata?.tokens.total ?? 0);
-  const totalDuration =
-    (steps.extract.metadata?.durationMs ?? 0) +
-    (steps.match.metadata?.durationMs ?? 0) +
-    (steps.suggest.metadata?.durationMs ?? 0);
-  const modelUsed =
-    steps.extract.metadata?.modelUsed ??
-    steps.match.metadata?.modelUsed ??
-    steps.suggest.metadata?.modelUsed ??
-    "";
+  const baseMatching =
+    phase === "done" ? result!.matching : partial!.matching;
 
   return (
     <ResultsView
@@ -374,25 +297,31 @@ function ResultContent() {
           ? {
               tone: "amber",
               message:
-                steps.suggest.error ??
+                partial!.message ??
                 "Suggestions step failed. Showing match analysis only.",
-              action: { label: "Retry suggestions", onClick: retrySuggest },
+              action: {
+                label: "Retry suggestions",
+                onClick: () => {
+                  startedRef.current = true;
+                  runAnalysis();
+                },
+              },
             }
           : null
       }
       overall={{
-        score: matching!.overall_match.score,
-        verdict: matching!.overall_match.verdict,
-        summary: matching!.overall_match.summary,
+        score: baseMatching.overall_match.score,
+        verdict: baseMatching.overall_match.verdict,
+        summary: baseMatching.overall_match.summary,
       }}
-      dimensions={matching!.dimensions.map((d) => ({
+      dimensions={baseMatching.dimensions.map((d) => ({
         name: d.name,
         score: d.score,
         note: d.note,
         confidence: d.confidence,
       }))}
-      strengths={matching!.strengths ?? []}
-      gaps={matching!.gaps.map((g) => ({
+      strengths={baseMatching.strengths ?? []}
+      gaps={baseMatching.gaps.map((g) => ({
         area: g.area,
         severity: g.severity,
         confidence: g.confidence,
@@ -400,28 +329,22 @@ function ResultContent() {
         honestNote: g.honest_note,
       }))}
       suggestions={
-        phase === "done" && suggestions ? mapSuggestions(suggestions) : []
+        phase === "done"
+          ? mapSuggestions(result!.suggestions)
+          : []
       }
       honesty={
-        phase === "done" && suggestions
-          ? {
-              shouldProceed: suggestions.honesty_check.should_proceed,
-              message: suggestions.honesty_check.message_to_user,
-              alternatives:
-                suggestions.honesty_check.alternative_suggestions ?? [],
-            }
-          : null
-      }
-      validation={phase === "done" ? validation : null}
-      metadata={
         phase === "done"
           ? {
-              totalTokens,
-              durationMs: totalDuration,
-              modelUsed,
+              shouldProceed: result!.suggestions.honesty_check.should_proceed,
+              message: result!.suggestions.honesty_check.message_to_user,
+              alternatives:
+                result!.suggestions.honesty_check.alternative_suggestions ?? [],
             }
           : null
       }
+      validation={phase === "done" ? result!.validation : null}
+      metadata={phase === "done" ? result!.metadata : null}
     />
   );
 }
@@ -440,8 +363,8 @@ function mapSuggestions(s: SuggestionResult) {
 
 // --- Sub-components ---
 
-function LoadingView({ steps }: { steps: StepsMap }) {
-  const items: Array<{ key: StepKey; label: string; desc: string }> = [
+function LoadingView({ steps }: { steps: StepsState }) {
+  const items: Array<{ key: keyof StepsState; label: string; desc: string }> = [
     {
       key: "extract",
       label: "Extracting information",
@@ -461,31 +384,31 @@ function LoadingView({ steps }: { steps: StepsMap }) {
   return (
     <main className="flex-1 bg-zinc-50/60 text-zinc-900">
       <div className="mx-auto max-w-xl px-6 py-20">
-        <h1 className="text-2xl font-semibold tracking-tight">Running analysis</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Running analysis
+        </h1>
         <p className="mt-2 text-zinc-600">
-          This takes about 10–25 seconds. Please stay on this page.
+          This takes about 10–30 seconds. Please stay on this page.
         </p>
         <ol className="mt-8 space-y-4">
           {items.map((it, idx) => {
-            const st = steps[it.key].state;
-            const dur = steps[it.key].metadata?.durationMs;
+            const st = steps[it.key];
             return (
               <li key={it.key} className="flex gap-4">
                 <StepIcon state={st} n={idx + 1} />
                 <div className="flex-1">
                   <p
                     className={`font-medium ${
-                      st === "pending" ? "text-zinc-500" : "text-zinc-900"
+                      st === "done"
+                        ? "text-zinc-900"
+                        : st === "running"
+                          ? "text-zinc-900"
+                          : "text-zinc-500"
                     }`}
                   >
                     {it.label}
                     {st === "running" && (
                       <span className="ml-2 text-xs text-zinc-500">…</span>
-                    )}
-                    {st === "done" && dur != null && (
-                      <span className="ml-2 text-xs text-zinc-500">
-                        {(dur / 1000).toFixed(1)}s
-                      </span>
                     )}
                   </p>
                   <p className="text-sm text-zinc-500">{it.desc}</p>
@@ -514,10 +437,10 @@ function StepIcon({ state, n }: { state: StepState; n: number }) {
       </div>
     );
   }
-  if (state === "failed") {
+  if (state === "skipped") {
     return (
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-red-300 bg-red-50 text-red-700">
-        ✗
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-amber-700">
+        !
       </div>
     );
   }
@@ -529,18 +452,9 @@ function StepIcon({ state, n }: { state: StepState; n: number }) {
 }
 
 interface ResultsViewProps {
-  banner: {
-    tone: "amber" | "zinc";
-    message: string;
-    action?: { label: string; onClick: () => void };
-  } | null;
+  banner: { tone: "amber" | "zinc"; message: string; action?: { label: string; onClick: () => void } } | null;
   overall: { score: number; verdict: string; summary: string };
-  dimensions: Array<{
-    name: string;
-    score: number;
-    note: string;
-    confidence?: "high" | "medium" | "low";
-  }>;
+  dimensions: Array<{ name: string; score: number; note: string; confidence?: "high" | "medium" | "low" }>;
   strengths: Array<{ area: string; evidence: string; jd_relevance: string }>;
   gaps: Array<{
     area: string;

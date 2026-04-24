@@ -1,8 +1,0 @@
-{
-  "functions": {
-    "src/app/api/analyze/extract/route.ts": { "maxDuration": 10 },
-    "src/app/api/analyze/match/route.ts": { "maxDuration": 10 },
-    "src/app/api/analyze/suggest/route.ts": { "maxDuration": 10 },
-    "src/app/api/parse-resume/route.ts": { "maxDuration": 10 }
-  }
-}

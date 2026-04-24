@@ -104,9 +104,3 @@ export interface AgentResult {
 
 export type AgentStep = "extract" | "match" | "suggest";
 export type AgentStepStatus = "start" | "done";
-
-export interface StepMetadata {
-  durationMs: number;
-  tokens: { input: number; output: number; total: number };
-  modelUsed: string;
-}

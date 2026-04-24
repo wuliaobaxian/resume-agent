@@ -24,7 +24,9 @@
       "Bash(curl.exe -s -X POST http://localhost:3000/api/parse-resume -F \"file=@/tmp/big.pdf\")",
       "Bash(node scripts/test-agent.js)",
       "Bash(npm uninstall *)",
-      "Bash(node scripts/test-steps.js)"
+      "Bash(node scripts/test-steps.js)",
+      "Bash(rm -f src/app/api/analyze/extract/route.ts src/app/api/analyze/match/route.ts src/app/api/analyze/suggest/route.ts vercel.json scripts/test-steps.js)",
+      "Bash(rmdir src/app/api/analyze/extract src/app/api/analyze/match src/app/api/analyze/suggest)"
     ]
   }
 }
