@@ -364,23 +364,55 @@ function mapSuggestions(s: SuggestionResult) {
 // --- Sub-components ---
 
 function LoadingView({ steps }: { steps: StepsState }) {
-  const items: Array<{ key: keyof StepsState; label: string; desc: string }> = [
+  const items: Array<{
+    key: keyof StepsState;
+    label: string;
+    desc: string;
+    estimate: string;
+  }> = [
     {
       key: "extract",
       label: "Extracting information",
       desc: "Parsing your JD and resume into structured data.",
+      estimate: "About 15–20 seconds",
     },
     {
       key: "match",
       label: "Analyzing match",
-      desc: "Scoring dimensions and identifying gaps.",
+      desc: "Scoring dimensions and identifying gaps — with confidence levels.",
+      estimate: "About 20–30 seconds",
     },
     {
       key: "suggest",
       label: "Generating suggestions",
-      desc: "Writing resume changes grounded in your content.",
+      desc: "Writing resume changes grounded in your content, nothing fabricated.",
+      estimate: "About 15–25 seconds",
     },
   ];
+
+  const [elapsed, setElapsed] = useState(0);
+  const [stepElapsed, setStepElapsed] = useState(0);
+  const startedAtRef = useRef<number>(Date.now());
+  const stepStartRef = useRef<number>(Date.now());
+  const currentStep =
+    items.find((it) => steps[it.key] === "running")?.key ?? null;
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000));
+      setStepElapsed(Math.floor((Date.now() - stepStartRef.current) / 1000));
+    }, 500);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    stepStartRef.current = Date.now();
+    setStepElapsed(0);
+  }, [currentStep]);
+
+  const currentLabel =
+    items.find((it) => it.key === currentStep)?.label ?? "Finishing up";
+
   return (
     <main className="flex-1 bg-zinc-50/60 text-zinc-900">
       <div className="mx-auto max-w-xl px-6 py-20">
@@ -388,8 +420,26 @@ function LoadingView({ steps }: { steps: StepsState }) {
           Running analysis
         </h1>
         <p className="mt-2 text-zinc-600">
-          This takes about 10–30 seconds. Please stay on this page.
+          Hang tight — we&apos;re being thorough. This typically takes about a
+          minute.
         </p>
+
+        <div className="mt-6 rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-zinc-900">
+              {currentStep ? currentLabel : "Wrapping up"}
+              {currentStep && (
+                <span className="ml-2 text-xs font-normal text-zinc-500">
+                  ({stepElapsed}s on this step)
+                </span>
+              )}
+            </span>
+            <span className="font-mono text-xs tabular-nums text-zinc-500">
+              {elapsed}s elapsed
+            </span>
+          </div>
+        </div>
+
         <ol className="mt-8 space-y-4">
           {items.map((it, idx) => {
             const st = steps[it.key];
@@ -399,11 +449,7 @@ function LoadingView({ steps }: { steps: StepsState }) {
                 <div className="flex-1">
                   <p
                     className={`font-medium ${
-                      st === "done"
-                        ? "text-zinc-900"
-                        : st === "running"
-                          ? "text-zinc-900"
-                          : "text-zinc-500"
+                      st === "pending" ? "text-zinc-500" : "text-zinc-900"
                     }`}
                   >
                     {it.label}
@@ -412,11 +458,20 @@ function LoadingView({ steps }: { steps: StepsState }) {
                     )}
                   </p>
                   <p className="text-sm text-zinc-500">{it.desc}</p>
+                  {st === "pending" && (
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      {it.estimate}
+                    </p>
+                  )}
                 </div>
               </li>
             );
           })}
         </ol>
+
+        <p className="mt-10 text-center text-xs text-zinc-400">
+          Stay on this page — closing it cancels the analysis.
+        </p>
       </div>
     </main>
   );
@@ -664,23 +719,41 @@ function ResultsView({
           </p>
         )}
 
-        <div className="flex flex-col items-center gap-3 pt-4 sm:flex-row sm:justify-center">
-          <Link
-            href="/analyze"
-            className="inline-flex h-11 w-full items-center justify-center rounded-md bg-zinc-900 px-6 text-sm font-medium text-white transition-colors hover:bg-zinc-800 sm:w-auto"
-          >
-            Start a new analysis
-          </Link>
-          <button
-            type="button"
-            onClick={() => alert("Coming soon")}
-            className="inline-flex h-11 w-full items-center justify-center rounded-md border border-zinc-300 bg-white px-6 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 sm:w-auto"
-          >
-            Export as PDF
-          </button>
-        </div>
+        <ActionButtons />
       </div>
     </main>
+  );
+}
+
+function ActionButtons() {
+  const [showExportHint, setShowExportHint] = useState(false);
+  return (
+    <div className="pt-4">
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <Link
+          href="/analyze"
+          className="inline-flex h-11 w-full items-center justify-center rounded-md bg-zinc-900 px-6 text-sm font-medium text-white transition-colors hover:bg-zinc-800 sm:w-auto"
+        >
+          Start a new analysis
+        </Link>
+        <button
+          type="button"
+          onClick={() => setShowExportHint(true)}
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-6 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 sm:w-auto"
+        >
+          Export as PDF
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
+            Soon
+          </span>
+        </button>
+      </div>
+      {showExportHint && (
+        <p className="mt-3 text-center text-xs text-zinc-500">
+          PDF export is on the roadmap. For now, take a screenshot or copy the
+          suggestions.
+        </p>
+      )}
+    </div>
   );
 }
 

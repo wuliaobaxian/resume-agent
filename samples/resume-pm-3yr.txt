@@ -1,0 +1,30 @@
+// Sample resume — used for demo: a ~3-year PM with consumer-mobile background.
+// Paste the block below (everything after this comment line) into the resume box
+// (or save it as a .txt file and upload it through the file picker).
+
+Jordan Lee
+Product Manager
+jordan.lee@example.com · linkedin.com/in/jordanlee-example · San Francisco, CA
+
+Summary
+Product manager with 3 years of experience building and growing consumer mobile apps. Led features across onboarding, notifications, and growth surfaces for a social app with 2M monthly active users. Comfortable translating user research into shippable specs, running cross-functional launches, and iterating based on quantitative signal.
+
+Experience
+
+Product Manager — Nimbus Social (2023–2025)
+- Led product development for mobile onboarding, growing new-user activation from 42% to 61% over six months through a series of shipped experiments
+- Coordinated 8 engineers and 2 designers on a notifications rewrite, shipping the project one sprint ahead of plan
+- Ran weekly user interviews with 6–8 consumers; used synthesized insights to kill two planned features that did not resonate before engineering work began
+- Defined and tracked activation, retention, and D30 engagement metrics in Amplitude; partnered with data analysts on weekly product reviews
+- Owned the launch of a referral program that drove 14% of new installs in its first quarter
+
+Associate Product Manager — Nimbus Social (2022–2023)
+- Owned small growth experiments on the invite flow, including an A/B test that increased invite conversion by 12%
+- Partnered with data analysts to pull behavioral data for weekly product reviews
+- Shipped lightweight improvements to the share sheet that increased shares per user by 8%
+
+Skills
+Product strategy, roadmapping, user interviews, A/B testing, Amplitude, Figma, Jira, cross-functional collaboration, written communication, mobile product
+
+Education
+B.S. Computer Science, State University, 2022

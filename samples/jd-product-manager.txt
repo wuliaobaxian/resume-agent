@@ -1,0 +1,37 @@
+// Sample JD — used for demo: a realistic mid-to-senior PM role in B2B SaaS.
+// Copy the block below (everything after this comment line) into the JD box.
+
+Senior Product Manager — B2B SaaS Analytics Platform
+
+About the role
+We are hiring a Senior Product Manager to lead our enterprise analytics platform. You will own the product strategy for a suite of B2B SaaS tools used by Fortune 500 customers across retail, logistics, and financial services. You will report to the VP of Product and partner daily with a team of 15 engineers, 3 designers, and a dedicated customer success group.
+
+Responsibilities
+- Own the product roadmap for our core analytics platform; balance quarterly commitments against longer-term strategic bets
+- Define and prioritize features based on customer research, usage data, and commercial impact
+- Partner closely with engineering, design, and go-to-market teams from spec through launch
+- Run customer discovery interviews with enterprise buyers, champions, and end-users
+- Translate enterprise requirements into shippable specifications that engineers can build from without ambiguity
+- Define success metrics and drive measurable business impact on activation, retention, and expansion revenue
+- Present product updates to executives internally and to customer stakeholders in QBRs
+- Mentor junior PMs on the team; contribute to our product-management craft guide
+
+Requirements
+- 5+ years of product management experience
+- 3+ years in B2B SaaS, ideally with enterprise customers (>$100k ACV)
+- Strong SQL and data-analysis skills — you should be comfortable querying production data in Snowflake or similar to answer your own questions without waiting on an analyst
+- Experience shipping features that drive measurable revenue or retention impact, with clear before/after metrics
+- Excellent written communication; you can write a crisp one-pager or PRD without help
+- Experience running discovery interviews with technical enterprise buyers
+- Bachelor's degree or equivalent experience
+
+Nice to have
+- Experience with Amplitude, Mixpanel, or similar product-analytics tools
+- Background in Figma for lightweight mocking and design review
+- Prior experience with Jira for agile delivery
+- Exposure to the analytics, data infrastructure, or business-intelligence space
+
+Benefits
+- Competitive salary plus equity
+- Remote-first, with quarterly offsites
+- Health, dental, vision, and a generous learning budget

@@ -1,0 +1,35 @@
+// Sample JD — used for demo: a hard-technical ML Engineer role.
+// Pair this with samples/resume-pm-3yr.txt to trigger the honesty check
+// (should_proceed: false), because a PM resume cannot honestly be rewritten
+// to meet these requirements.
+
+Senior Machine Learning Engineer — Recommendation Systems
+
+About the role
+We are looking for a Senior ML Engineer to own the recommendation and ranking stack that powers personalization across our consumer app (15M MAU). You will drive model development end-to-end: from offline experimentation and feature engineering through online A/B evaluation and production serving at scale. You will report to our Head of ML and collaborate with platform engineers, data scientists, and product managers.
+
+Responsibilities
+- Design, train, and ship deep-learning ranking models (two-tower, transformer-based sequence models, or similar) in production
+- Own the full ML lifecycle: feature engineering, offline evaluation, online A/B testing, monitoring, and retraining
+- Work in PyTorch (or equivalent) for modeling and with Spark / Flink for large-scale data pipelines
+- Build and maintain low-latency model-serving infrastructure (sub-100ms P99)
+- Partner with data engineering to design feature stores and ensure training/serving consistency
+- Contribute to our internal ML platform (experiment tracking, model registry, deployment tooling)
+- Mentor mid-level ML engineers; review research proposals and model cards
+
+Requirements
+- 5+ years of hands-on machine-learning engineering experience, with at least 2 years shipping ranking, search, or recommender systems to production
+- Strong Python, PyTorch (or TensorFlow), and SQL; production experience with one of Spark, Flink, or Beam
+- Deep understanding of ranking models — learning-to-rank, neural retrieval, sequence modeling, calibration
+- Experience running and interpreting offline evaluation (NDCG, MRR, AUC) and online A/B experiments
+- Comfortable reading and implementing recent research papers in recommendation systems
+- BS, MS, or PhD in Computer Science, Machine Learning, Statistics, or related quantitative field
+- Experience at scale: training on millions+ of examples, serving to millions+ of users
+
+Nice to have
+- Publications at NeurIPS, ICML, KDD, RecSys, or similar venues
+- Experience with JAX, Ray, or large-scale distributed training
+- Familiarity with embedding-based retrieval (FAISS, ScaNN)
+- Prior experience in consumer apps with strong personalization (content feeds, e-commerce, streaming)
+
+This is a hands-on IC role. You will write code every day.
