@@ -14,15 +14,29 @@ This project is an attempt to invert the default. I wanted to test a product hyp
 
 ## Demo
 
-Screenshots (to be added):
+**The landing page**
 
-- **Input page** — JD textarea + resume file upload / paste
-- **Progress page** — 3-step agent pipeline with live status
-- **Good-match result** — full match report with suggestions
-- **Reconsider result** — the honesty check refusing to polish a bad fit and suggesting alternative roles (this one's the differentiator)
-- **Anti-hallucination warning** — the validator flagging a suggestion that drifted from source material
+![Landing page](docs/screenshots/01-landing.png)
 
-> Demo video: _link to be added_
+**Paste a JD and upload your resume**
+
+![Input page](docs/screenshots/02-input.png)
+
+**Three-step workflow with live progress**
+
+![Progress page](docs/screenshots/03-progress.png)
+
+**Match analysis with confidence-scored gaps**
+
+![Good-match result](docs/screenshots/04-result-normal.png)
+
+**When the fit isn't there, the agent says so**
+
+![Reconsider result](docs/screenshots/05-result-decline.png)
+
+**Every suggestion is tied to source material**
+
+![Anti-hallucination warning](docs/screenshots/06-anti-hallucination.png)
 
 ## Architecture
 
@@ -149,8 +163,6 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000 in your browser.
-
 Sample inputs for quick testing are in [`samples/`](samples/).
 
 ## Roadmap
@@ -162,7 +174,9 @@ Sample inputs for quick testing are in [`samples/`](samples/).
 
 ## Author
 
-**Your Name** — _contact / website to be added_
+**Wangwill**
+
+📧 zhiweicareer@163.com
 
 ---
 

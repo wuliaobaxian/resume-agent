@@ -26,7 +26,16 @@
       "Bash(npm uninstall *)",
       "Bash(node scripts/test-steps.js)",
       "Bash(rm -f src/app/api/analyze/extract/route.ts src/app/api/analyze/match/route.ts src/app/api/analyze/suggest/route.ts vercel.json scripts/test-steps.js)",
-      "Bash(rmdir src/app/api/analyze/extract src/app/api/analyze/match src/app/api/analyze/suggest)"
+      "Bash(rmdir src/app/api/analyze/extract src/app/api/analyze/match src/app/api/analyze/suggest)",
+      "Bash(awk 'NR>=FNR{if\\(/^export const SUGGESTION_PROMPT/\\) p=1; if\\(p\\){print NR\": \"$0; if\\(/^`;$/\\) exit}}' src/lib/agent/prompts.ts)",
+      "Bash(PORT=3100 npx next dev -p 3100)",
+      "Bash(echo \"started PID $!\")",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3100/)",
+      "Bash(node scripts/test-agent.js http://localhost:3100/api/analyze)",
+      "Read(//tmp/**)",
+      "Bash(rm -f /tmp/dev-diagnostic.log)",
+      "Bash(curl -sS -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3200/)",
+      "Bash(node scripts/test-agent.js http://localhost:3000/api/analyze)"
     ]
   }
 }
